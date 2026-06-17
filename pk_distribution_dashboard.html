@@ -1,0 +1,238 @@
+
+<h2 class="sr-only">PK data distribution dashboard: 10,330 records across 323 compounds, 41 species, 79 PK parameters</h2>
+<style>
+.db{font-family:var(--font-sans);padding:1.5rem 0}
+.db-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px}
+.db-title{font-size:18px;font-weight:500;color:var(--color-text-primary);margin:0}
+.db-sub{font-size:12px;color:var(--color-text-secondary);margin-top:3px}
+.db-stamp{font-size:11px;color:var(--color-text-secondary);padding:4px 10px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);white-space:nowrap}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
+.kpi-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:.85rem 1rem}
+.kpi-n{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.kpi-l{font-size:11px;color:var(--color-text-secondary);margin-top:2px;letter-spacing:.03em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.panel{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1.1rem 1.25rem}
+.panel-t{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px}
+.panel-s{font-size:11px;color:var(--color-text-secondary);margin-bottom:10px}
+.ch-wrap{position:relative}
+.leg{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.leg-i{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)}
+.leg-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+</style>
+
+<div class="db">
+<div class="db-head">
+  <div>
+    <div class="db-title">PK Data Distribution</div>
+    <div class="db-sub">pharmablockPKextract · ALL_merged__20260528_135200.csv</div>
+  </div>
+  <div class="db-stamp">10,330 records · 323 compounds · 41 species · 79 parameters</div>
+</div>
+
+<div class="kpi">
+  <div class="kpi-card"><div class="kpi-n">10,330</div><div class="kpi-l">Total records</div></div>
+  <div class="kpi-card"><div class="kpi-n">323</div><div class="kpi-l">Compounds (PB series)</div></div>
+  <div class="kpi-card"><div class="kpi-n" style="color:#378ADD">57.6%</div><div class="kpi-l">PO · oral route</div></div>
+  <div class="kpi-card"><div class="kpi-n" style="color:#1D9E75">95.7%</div><div class="kpi-l">Plasma samples</div></div>
+</div>
+
+<div class="grid2">
+  <!-- Species -->
+  <div class="panel">
+    <div class="panel-t">Species distribution</div>
+    <div class="panel-s">Normalised across duplicate aliases (SD Rats / Sprague-Dawley Rat etc.)</div>
+    <div class="ch-wrap" style="height:240px"><canvas id="cSpec" role="img" aria-label="Species bar chart"></canvas></div>
+  </div>
+  <!-- Route -->
+  <div class="panel">
+    <div class="panel-t">Administration route</div>
+    <div class="panel-s">PO · IV · SC breakdown</div>
+    <div class="leg" id="legRoute"></div>
+    <div class="ch-wrap" style="height:200px"><canvas id="cRoute" role="img" aria-label="Route doughnut chart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <!-- PK Parameters split: concentration vs PK -->
+  <div class="panel">
+    <div class="panel-t">PK parameters — pharmacokinetic indices</div>
+    <div class="panel-s">T½, AUC, Cmax, CL, Vss … (concentration timepoints excluded)</div>
+    <div class="ch-wrap" style="height:240px"><canvas id="cParam" role="img" aria-label="PK parameter bar chart"></canvas></div>
+  </div>
+  <!-- Concentration timepoints -->
+  <div class="panel">
+    <div class="panel-t">Concentration timepoints</div>
+    <div class="panel-s">Sampling frequency across all studies</div>
+    <div class="ch-wrap" style="height:240px"><canvas id="cConc" role="img" aria-label="Concentration timepoint bar chart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid3">
+  <!-- Tissue -->
+  <div class="panel">
+    <div class="panel-t">Tissue / matrix</div>
+    <div class="panel-s">plasma · brain · organ distribution</div>
+    <div class="leg" id="legTissue"></div>
+    <div class="ch-wrap" style="height:180px"><canvas id="cTissue" role="img" aria-label="Tissue doughnut"></canvas></div>
+  </div>
+  <!-- Top compounds -->
+  <div class="panel" style="grid-column:span 2">
+    <div class="panel-t">Top compounds by record count</div>
+    <div class="panel-s">Top 15 of 323 PB-series compounds</div>
+    <div class="ch-wrap" style="height:180px"><canvas id="cComp" role="img" aria-label="Top compounds bar chart"></canvas></div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const C={
+  blue:'#378ADD', teal:'#1D9E75', amber:'#BA7517', purple:'#7F77DD',
+  coral:'#D85A30', pink:'#D4537E', green:'#639922', gray:'#888780',
+  b2:'#B5D4F4', t2:'#9FE1CB', a2:'#FAC775', p2:'#CECBF6',
+};
+const SEQ=[C.blue,C.teal,C.amber,C.purple,C.coral,C.pink,C.green,C.gray];
+
+function leg(id,labels,colors){
+  document.getElementById(id).innerHTML=labels.map((l,i)=>
+    `<span class="leg-i"><span class="leg-dot" style="background:${colors[i%colors.length]}"></span>${l}</span>`
+  ).join('');
+}
+
+const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+const gridC=isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.07)';
+const textC=isDark?'#aaa':'#666';
+const baseOpts={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false}},
+  scales:{x:{grid:{color:gridC},ticks:{color:textC,font:{size:10}}},
+          y:{grid:{color:gridC},ticks:{color:textC,font:{size:10}}}}};
+
+/* ── 1. Species — merge aliases ── */
+const speciesRaw={
+  'SD Rats':2928,'CD-1(ICR) Mouse / CD1 / CD-1 Mice':2535,
+  'Beagle Dogs':1634,'BALB/c Nude Mice':1466,
+  'Sprague-Dawley Rat':812,'Cynomolgus Monkey':449,
+  'CD-1 Mouse':151,'BALB/c Mouse':41,'Others':59
+};
+const spKeys=Object.keys(speciesRaw),spVals=Object.values(speciesRaw);
+new Chart(document.getElementById('cSpec'),{
+  type:'bar',
+  data:{labels:spKeys,datasets:[{data:spVals,
+    backgroundColor:SEQ,borderRadius:4,borderSkipped:false}]},
+  options:{...baseOpts,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw.toLocaleString()} records`}}},
+    scales:{
+      x:{grid:{color:gridC},ticks:{color:textC,font:{size:9},maxRotation:32}},
+      y:{grid:{color:gridC},ticks:{color:textC,font:{size:10},
+        callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}}
+    }
+  }
+});
+
+/* ── 2. Route doughnut ── */
+const rtLabels=['PO  57.6%','IV  41.7%','SC  0.5%','Other  0.2%'];
+const rtVals=[5952,4308,54,16];
+const rtColors=[C.blue,C.teal,C.amber,C.gray];
+leg('legRoute',rtLabels,rtColors);
+new Chart(document.getElementById('cRoute'),{
+  type:'doughnut',
+  data:{labels:['PO','IV','SC','Other'],datasets:[{data:rtVals,
+    backgroundColor:rtColors,borderWidth:2,
+    borderColor:isDark?'#1e1e1e':'#fff'}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw.toLocaleString()} (${(c.raw/10330*100).toFixed(1)}%)`}}}}
+});
+
+/* ── 3. PK parameters (non-concentration) ── */
+const pkParams={
+  'T½':601,'AUClast':581,'AUCINF':518,'Tmax':378,'Cmax':371,
+  'MRTINF':312,'CL':264,'Vss/VSS':262,'Rsq_adjusted':107,
+  'F':39,'MRTinf':49,'AUClast-brain/plasma':20
+};
+const ppK=Object.keys(pkParams),ppV=Object.values(pkParams);
+new Chart(document.getElementById('cParam'),{
+  type:'bar',
+  data:{labels:ppK,datasets:[{data:ppV,
+    backgroundColor:C.purple,borderRadius:4,borderSkipped:false}]},
+  options:{...baseOpts,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw} records`}}},
+    scales:{
+      x:{grid:{color:gridC},ticks:{color:textC,font:{size:9},maxRotation:35}},
+      y:{grid:{color:gridC},ticks:{color:textC,font:{size:10}}}
+    }
+  }
+});
+
+/* ── 4. Concentration timepoints ── */
+const concData={
+  '0.083h':345,'0.25h':856,'0.5h':934,'1h':876,
+  '2h':922,'4h':847,'8h':870,'24h':851
+};
+const ccK=Object.keys(concData),ccV=Object.values(concData);
+const concGrad=ccK.map((_,i)=>{
+  const t=i/(ccK.length-1);
+  const r=Math.round(55+t*(180-55)),g=Math.round(130+t*(100-130)),b=Math.round(221+t*(100-221));
+  return `rgb(${r},${g},${b})`;
+});
+new Chart(document.getElementById('cConc'),{
+  type:'bar',
+  data:{labels:ccK,datasets:[{data:ccV,
+    backgroundColor:concGrad,borderRadius:4,borderSkipped:false}]},
+  options:{...baseOpts,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw} samples`}}},
+    scales:{
+      x:{grid:{color:gridC},ticks:{color:textC,font:{size:10}}},
+      y:{grid:{color:gridC},ticks:{color:textC,font:{size:10},
+        callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v},
+        min:800,suggestedMax:1000}
+    }
+  }
+});
+
+/* ── 5. Tissue doughnut ── */
+const tsLabels=['Plasma  95.7%','Brain  1.6%','Brain/Plasma ratio  0.7%','Organs  1.7%','Other  0.3%'];
+const tsVals=[9885,163,73,175,34];
+const tsColors=[C.blue,C.teal,C.purple,C.amber,C.gray];
+leg('legTissue',tsLabels,tsColors);
+new Chart(document.getElementById('cTissue'),{
+  type:'doughnut',
+  data:{labels:['Plasma','Brain','Brain/Plasma ratio','Organs','Other'],datasets:[{data:tsVals,
+    backgroundColor:tsColors,borderWidth:2,
+    borderColor:isDark?'#1e1e1e':'#fff'}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw.toLocaleString()} (${(c.raw/10330*100).toFixed(1)}%)`}}}}
+});
+
+/* ── 6. Top compounds ── */
+const compData={
+  'PB51-007-02':242,'PB43-115-01':229,'PB51-312':219,'PB51-312-06':204,
+  'PB29-353-07':173,'PB51-312-04':161,'PB51-007-01':159,'PB51-310-02':155,
+  'PB51-312-02':121,'PB51-008-03':116,'PB47-592-06':105,'PB51-312-01':104,
+  'PB29-226-02':93,'PB51-362-02':87,'PB47-592-10':84
+};
+const cpK=Object.keys(compData),cpV=Object.values(compData);
+const compColors=cpK.map((_,i)=>{
+  const t=i/(cpK.length-1);
+  return `rgba(29,158,117,${1-t*0.55})`;
+});
+new Chart(document.getElementById('cComp'),{
+  type:'bar',
+  data:{labels:cpK,datasets:[{data:cpV,
+    backgroundColor:compColors,borderRadius:3,borderSkipped:false}]},
+  options:{...baseOpts,
+    plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>` ${c.raw} records`}}},
+    scales:{
+      x:{grid:{color:gridC},ticks:{color:textC,font:{size:9},maxRotation:35}},
+      y:{grid:{color:gridC},ticks:{color:textC,font:{size:10}}}
+    }
+  }
+});
+</script>
